@@ -1,0 +1,202 @@
+---
+title: "Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## Converting csv data to data frame, WeatherAUS is cleaned by hand
+```{r}
+Brisbane <- read.csv(file = "southbrisbane-aq-2018.csv", header = TRUE)
+BNEWeather<- read.csv(file = "weatherBNE.csv", header = TRUE, sep = ",")
+```
+
+
+## Find out and check the outliers
+```{r}
+install.packages("ggplot2")
+plot(Brisbane$PM10..ug.m.3.)
+boxplot(Brisbane$PM10..ug.m.3.)
+```
+
+## Changing NA to mean
+```{r}
+for (i in 1 : ncol(BNEWeather)) {
+  BNEWeather[is.na(BNEWeather[,i]), i] <- mean(BNEWeather[,i], na.rm = TRUE)
+}
+
+for (i in 1 : ncol(Brisbane)) {
+  Brisbane[is.na(Brisbane[,i]), i] <- mean(Brisbane[,i], na.rm = TRUE)
+}
+
+summary(Brisbane)
+summary(BNEWeather)
+```
+
+## omit negative
+```{r}
+Brisbane[Brisbane < 0] <- 0
+summary(Brisbane)
+```
+
+## Write file
+```{r}
+write.csv(BNEWeather, file = "BNEWeather.csv")
+
+```
+
+
+
+## Mean group by month, need to write date label mannully
+```{r}
+tmp <- aggregate(Brisbane[,3:14], by = list(Brisbane$Date), FUN = mean)
+summary(tmp)
+write.csv(tmp, file = "BrisbaneMean.csv")
+```
+
+
+## Merge BrisbaneMean and BNEWeather
+```{r}
+BNE <-read.csv(file = "BNEWeather.csv", header = TRUE)
+bm <- read.csv(file = "BrisbaneMean.csv", header = TRUE)
+MERGE <- merge(BNE, bm, by = "Date")
+summary(MERGE)
+write.csv(MERGE, file = "Merge.csv")
+```
+
+
+## correlations 
+```{r}
+install.packages("reshape2")
+
+merge <- read.csv("Merge.csv")
+
+Airqu = c("Nitrogen.Oxide..ppm.","Nitrogen.Dioxide..ppm.","Nitrogen.Oxides..ppm.","Carbon.Monoxide..ppm.","PM10..ug.m.3.","PM2.5..ug.m.3.")
+BneWea = c("Rainfall","MinTemp","MaxTemp","WindGustSpeed","Humidity9am","Humidity3pm","Temp9am","Temp3pm")
+
+cor(merge[Airqu], merge[BneWea])
+
+library(ggplot2)
+library(reshape2)
+Correlation1 = melt(cor(merge[Airqu],merge[BneWea][1:4]))
+ggplot(data= Correlation1,aes(x=Var2,y=Var1,fill=value))+geom_tile()+
+  xlab('Brisbane Weather')+ylab('Air quality')
+
+Correlation1 = melt(cor(merge[Airqu],merge[BneWea][5:8]))
+ggplot(data= Correlation1,aes(x=Var2,y=Var1,fill=value))+geom_tile()+
+  xlab('Brisbane Weather')+ylab('Air quality')
+
+```
+
+
+## parts of decision tree
+```{r}
+# read the data
+install.packages("party")
+seeds <- read.csv('Merge.csv')
+
+# make sure the target variable is a factor, so we will predict a class (classification) instead of a real number (regression)
+
+# split into training and testing
+set.seed(1234)
+ind <- sample(2, nrow(seeds), replace=TRUE, prob=c(0.7, 0.3))
+train_data <- seeds[ind==1,]
+test_data <- seeds[ind==2,]
+
+# create a formula that identifies the dependent (target) and independent variables
+# Pm2.5
+library(party)
+formula <- PM2.5..ug.m.3. ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+# the next operation (the creation of the decision tree) would take a long time with more data and more classes, but has no problem with our toy data set
+Pm2.5_ctree <- ctree(formula, data = train_data)
+
+plot(Pm2.5_ctree)
+
+# Pm10
+formula <- PM10..ug.m.3. ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+Pm10_ctree <- ctree(formula, data = train_data)
+plot(Pm10_ctree)
+
+# Carbon.Monoxide..ppm.
+formula <- Carbon.Monoxide..ppm. ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+Carbon.Monoxide_ctree <- ctree(formula, data = train_data)
+plot(Carbon.Monoxide_ctree)
+
+# Nitrogen.Oxides..ppm.
+
+formula <- Nitrogen.Oxides..ppm. ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+Nitrogen.Oxides_ctree <- ctree(formula, data = train_data)
+plot(Nitrogen.Oxides_ctree)
+
+# Nitrogen.Dioxide..ppm.
+
+formula <- Nitrogen.Dioxide..ppm. ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+ Nitrogen.Dioxide_ctree <- ctree(formula, data = train_data)
+plot(Nitrogen.Dioxide_ctree)
+
+# Nitrogen.Oxide..ppm.
+formula <- Nitrogen.Oxide..ppm. ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+ Nitrogen.Oxide_ctree <- ctree(formula, data = train_data)
+plot(Nitrogen.Oxide_ctree)
+
+# Relative.Humidity....
+formula <- Relative.Humidity.... ~  + MinTemp + MaxTemp + Rainfall + Evaporation + Sunshine + WindGustSpeed + WindDir9am + WindDir3pm + WindSpeed9am + WindSpeed3pm + Humidity9am + Humidity3pm + Pressure9am + Pressure3pm + Cloud9am + Cloud3pm + Temp9am + Temp3pm + RainToday
+ Relative.Humidity_ctree <- ctree(formula, data = train_data)
+plot(Relative.Humidity_ctree)
+
+```
+
+## Clustering
+```{r}
+## import packages
+site = "https://mirrors.tuna.tsinghua.edu.cn/CRAN"
+package_list = c("factoextra", "cluster")
+for(p in package_list){
+  if(!suppressWarnings(suppressMessages(require(p, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE)))){
+    install.packages(p, repos=site)
+    suppressWarnings(suppressMessages(library(p, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE)))
+  }
+}
+
+## read clean data
+df <- read.csv("Merge.csv", header = T, sep = ",")
+
+str(df)
+
+## select numeric columns
+df1 = data.frame(df["MinTemp"], df["MaxTemp"], df["Rainfall"], df["Sunshine"], df["WindSpeed3pm"], df["Humidity3pm"], df["Pressure3pm"], df["PM10..ug.m.3."], df["PM2.5..ug.m.3."])
+
+## calculate K clusters
+df1 = na.omit(df1)
+set.seed(123)
+gap_stat = clusGap(df1, FUN = kmeans, nstart = 25, K.max = 10, B = 500)
+fviz_gap_stat(gap_stat)
+
+## kmeans clustering, the number of k will be changed, and following the above answer 
+km.res = kmeans(df1, 2, nstart = 25)
+fviz_cluster(km.res, df1)
+
+```
+
